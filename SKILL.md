@@ -1,0 +1,69 @@
+---
+name: chrisnizer
+description: >
+  If you want to sound more human, or really, more like Chris Hill, this skill
+  does that. It flags AI-writing tells and drift from his house rules (no em
+  dashes, no boosterism, active voice, first person singular, flowing paragraphs,
+  one idea per sentence, lede first), auto-fixes the mechanical ones, and
+  rewrites the judgment calls in his voice. Use when asked to chrisnize, de-slop,
+  humanize, or fix the tone of a draft, or on /chrisnizer.
+---
+
+# chrisnizer
+
+If you want to sound more human, or really, more like me, this skill does that.
+It is a deterministic linter plus a voice profile. The linter finds where a draft
+drifts from the house rules in `VOICE.md`. You apply the fixes in voice.
+
+Read `VOICE.md` first. It is the profile you are editing toward.
+
+## Run the linter
+
+The script is stdlib-only Python, no install. Base directory is this skill's
+folder.
+
+```sh
+python3 scripts/chrisnizer_lint.py DRAFT.md          # report
+python3 scripts/chrisnizer_lint.py --json DRAFT.md   # findings as JSON
+python3 scripts/chrisnizer_lint.py --fix DRAFT.md    # apply mechanical fixes in place
+python3 scripts/chrisnizer_lint.py --academic DRAFT.md   # allow we/our for papers
+```
+
+For pasted text, write it to a temp file and lint that.
+
+## What the linter decides vs what you decide
+
+The linter auto-fixes only the mechanical, unambiguous things under `--fix`:
+curly quotes to straight, stray Unicode removed, doubled spaces collapsed,
+trailing whitespace trimmed.
+
+Everything else it flags with a suggestion, and you apply it using judgment, in
+Chris's voice:
+
+- **em dash / en dash**: replace with a comma, period, or colon. Never leave one.
+- **filler, ai_vocab, boosterism, hedge**: cut the word or say it plainly. Do not
+  swap one inflated word for another.
+- **negative_parallelism** ("not just X but Y"): rewrite as one plain clause.
+- **passive_voice**: name the actor and make it active, when it reads better.
+- **long_sentence**: split into one idea per sentence.
+- **plural_first_person**: change we/our to I/my for solo writing. Leave it under
+  `--academic`.
+- **label_bullet**: fold labelled fragments into a flowing paragraph when the
+  content is narrative.
+- **title_case_heading**: sentence case, first word capitalised only.
+
+## Workflow
+
+1. Read `VOICE.md`.
+2. Run `scripts/chrisnizer_lint.py` on the draft (`--academic` if it is a paper).
+3. Run `--fix` to clear the mechanical findings.
+4. Apply the flagged judgment items by rewriting in Chris's voice: lede first,
+   flowing paragraphs, one idea per sentence, active, plain, no dashes.
+5. Re-run the linter and confirm it is clean or that anything left is deliberate.
+6. Report what changed in a short summary, not a wall of diffs.
+
+## Rule
+
+Preserve every fact, number, name, and link. Change the wording, never the
+claims. When a flagged word is load-bearing (a real 90-degree angle, a quoted
+term), leave it and say why.

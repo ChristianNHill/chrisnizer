@@ -218,32 +218,53 @@ def lint(text: str, academic: bool = False) -> list[Finding]:
             findings.append(Finding(i, "mechanical", raw.strip()[:80],
                 "run --fix to normalise quotes and stray characters"))
 
-    # sentence-level: length and passive voice, across the whole prose
-    prose = "\n".join(
-        l for l in _strip_code(text).splitlines()
-        if l.strip() and not l.lstrip().startswith(("#", "-", "*", "|", ">"))
+    # sentence-level: length and passive voice, with real line numbers.
+    # Non-prose lines (code, headings, lists, tables) are blanked but kept, so
+    # character offsets still map back to source line numbers.
+    masked_lines: list[str] = []
+    in_fence = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            masked_lines.append(" " * len(line))
+            continue
+        if in_fence or not line.strip() or line.lstrip().startswith(("#", "-", "*", "|", ">")):
+            masked_lines.append(" " * len(line))
+        else:
+            masked_lines.append(_mask_line(line))
+    full = "\n".join(masked_lines)
+    line_starts = [0]
+    for ln in masked_lines:
+        line_starts.append(line_starts[-1] + len(ln) + 1)
+
+    def line_of(offset: int) -> int:
+        import bisect
+        return bisect.bisect_right(line_starts, offset)
+
+    _aux = r"\b(?:is|are|was|were|be|been|being)\b\s+"
+    _passive_by = _aux + r"\w+(?:ed|en)\b\s+by\b"
+    _verbal = (
+        r"(?:shown|made|done|given|taken|seen|built|sent|held|put|written|"
+        r"drawn|known|found|kept|told|brought|bought|caught|sold|paid|read|"
+        r"processed|generated|computed|scored|produced|blocked|recorded|"
+        r"executed|repaired|filled|closed|stored|returned|applied)"
     )
-    for sent in re.split(r"(?<=[.!?])\s+", prose):
-        s = _mask_line(sent).strip()
+    _passive_verbal = _aux + _verbal + r"\b"
+
+    for mtch in re.finditer(r"[^.!?]*[.!?]", full, re.DOTALL):
+        s = mtch.group().strip()
         if not s:
             continue
-        n = len(s.split())
+        line = line_of(mtch.start())
+        # count the clause before a colon: a "sentence: a, b, c" list is long
+        # because of the list, not because it packs several ideas.
+        head = s.split(":", 1)[0]
+        n = len(head.split()) if ":" in s else len(s.split())
         if n > LONG_SENTENCE_WORDS:
-            findings.append(Finding(0, "long_sentence", sent.strip()[:90],
+            findings.append(Finding(line, "long_sentence", s[:90],
                 f"{n} words; one idea per sentence, consider splitting"))
-        # High precision: a "by" agent, or a clearly verbal participle. This
-        # skips predicate adjectives like "is unsupported" or "is watertight".
-        _aux = r"\b(?:is|are|was|were|be|been|being)\b\s+"
-        _passive_by = _aux + r"\w+(?:ed|en)\b\s+by\b"
-        _verbal = (
-            r"(?:shown|made|done|given|taken|seen|built|sent|held|put|written|"
-            r"drawn|known|found|kept|told|brought|bought|caught|sold|paid|read|"
-            r"processed|generated|computed|scored|produced|blocked|recorded|"
-            r"executed|repaired|filled|closed|stored|returned|applied)"
-        )
-        _passive_verbal = _aux + _verbal + r"\b"
         if re.search(_passive_by, s, re.I) or re.search(_passive_verbal, s, re.I):
-            findings.append(Finding(0, "passive_voice", sent.strip()[:90],
+            findings.append(Finding(line, "passive_voice", s[:90],
                 "prefer active voice (name the actor)"))
 
     return findings

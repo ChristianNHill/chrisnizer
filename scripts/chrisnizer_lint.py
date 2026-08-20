@@ -46,7 +46,7 @@ BOOSTERISM = [
 
 # Generic AI-tell vocabulary (from the humanizer / Wikipedia AI-writing signs).
 AI_VOCAB = [
-    "delve", "underscore", "testament", "tapestry", "showcase", "foster",
+    "delve", "underscore", "testament", "tapestry", "showcase", "foster", "surfaces",
     "garner", "intricate", "realm", "interplay", "multifaceted", "nuanced",
     "crucial", "vital", "pivotal", "boasts", "nestled", "in the realm of",
     "it is worth noting", "it's worth noting", "that being said",

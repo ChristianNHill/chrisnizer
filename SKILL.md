@@ -42,7 +42,10 @@ Chris's voice:
 
 - **em dash / en dash**: replace with a comma, period, or colon. Never leave one.
 - **filler, ai_vocab, boosterism, hedge**: cut the word or say it plainly. Do not
-  swap one inflated word for another.
+  swap one inflated word for another. Never use "silently" or "quietly", not even
+  in technical prose where they look descriptive. Say what happened, so "it fails
+  silently" becomes "it fails with no notification" or "it dies with no
+  notification".
 - **negative_parallelism** ("not just X but Y"): rewrite as one plain clause.
 - **pseudo_cleft** ("the shape is what should hold"): name the real subject and
   verb directly ("the shape should hold" becomes "the idea is that").

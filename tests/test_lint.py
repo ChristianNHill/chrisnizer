@@ -85,3 +85,10 @@ def test_staccato_run_flagged():
 def test_staccato_matches_shape_not_just_word():
     # different pronoun subjects, same shape
     assert "staccato" in cats("It defers the cost. This exposes no key. That reports the delta.")
+
+
+def test_fragment_colon_skips_real_sentence_with_pronoun_subject():
+    text = "Two things you check by reading, because no regex catches them:\n\n- one\n- two\n"
+    assert "fragment_colon" not in cats(text)
+    frag = "Three fingerprints, all built from signatures:\n\n- one\n- two\n"
+    assert "fragment_colon" in cats(frag)

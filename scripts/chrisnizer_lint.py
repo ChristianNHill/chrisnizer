@@ -61,8 +61,15 @@ HEDGES = [
 _HEDGE_RATHER = re.compile(r"\brather\b(?!\s+than\b)", re.IGNORECASE)
 
 # Pseudo-cleft abstraction: "X is what should Y" / "the shape is what holds".
-# A vague noun stands in for the real subject instead of naming it.
-_PSEUDO_CLEFT = re.compile(r"\b(?:is|was|are|were)\s+what\b", re.IGNORECASE)
+# A vague noun stands in for the real subject instead of naming it. Require a
+# modal/auxiliary after "what" so this doesn't fire on reported-speech uses
+# like "that's what tool descriptions say" or "states what it can access",
+# which are plain relative clauses, not a cleft standing in for a subject.
+_PSEUDO_CLEFT = re.compile(
+    r"\b(?:is|was|are|were)\s+what\s+(?:should|must|has to|have to|need(?:s)?(?:\s+to)?|ought(?:\s+to)?|"
+    r"can|could|will|would|holds?|matters?|works?|counts?)\b",
+    re.IGNORECASE,
+)
 
 # Rough finite-verb detector for the fragment_colon check: common copulas,
 # auxiliaries, and modals. Deliberately does not pattern-match word endings
@@ -72,6 +79,11 @@ _HAS_VERB = re.compile(
     r"can|could|will|would|shall|should|may|might|must)\b",
     re.IGNORECASE,
 )
+
+# A pronoun subject followed by another word is a clause with a subject doing
+# something, so the colon line is a sentence, not a verbless headline. Cheaper
+# and less brittle than growing _HAS_VERB into a dictionary of every verb.
+_PRONOUN_SUBJECT = re.compile(r"\b(?:I|you|we|they|it|he|she|this|that|these|those)\s+\w", re.IGNORECASE)
 
 NEGATIVE_PARALLELISM = [
     "not only", "not just", "isn't just", "it's not just", "not merely",
@@ -246,6 +258,7 @@ def lint(text: str, academic: bool = False) -> list[Finding]:
                 and "," in clause
                 and previews_a_list
                 and not _HAS_VERB.search(clause)
+                and not _PRONOUN_SUBJECT.search(clause)
             )
             # "X is real:" has a copula but is the same dramatic-assertion
             # tell used to preview a list ("The Batch API is real:").
@@ -306,6 +319,18 @@ def lint(text: str, academic: bool = False) -> list[Finding]:
     )
     _passive_verbal = _aux + _verbal + r"\b"
 
+    # Imperative sentences ("Run this to...", "Add a tool that...") are already
+    # active by construction, there's no unnamed actor to name. Skip the
+    # passive check when the sentence opens on a bare imperative verb.
+    _IMPERATIVES = {
+        "run", "add", "set", "change", "use", "try", "see", "open", "type",
+        "pass", "check", "make", "give", "keep", "read", "write", "call",
+        "build", "install", "enable", "configure", "verify", "confirm",
+        "look", "turn", "start", "stop", "delete", "remove", "update", "edit",
+        "create", "put", "move", "copy", "paste", "save", "load", "clear",
+        "reset", "point", "compare", "measure", "record", "grep", "find",
+    }
+
     def _opener(sentence: str) -> str:
         w = sentence.split()
         return w[0].lower().strip(",;:\"'()") if w else ""
@@ -344,7 +369,9 @@ def lint(text: str, academic: bool = False) -> list[Finding]:
         if n > LONG_SENTENCE_WORDS:
             findings.append(Finding(line, "long_sentence", s[:90],
                 f"{n} words; one idea per sentence, consider splitting"))
-        if re.search(_passive_by, s, re.I) or re.search(_passive_verbal, s, re.I):
+        if opener not in _IMPERATIVES and (
+            re.search(_passive_by, s, re.I) or re.search(_passive_verbal, s, re.I)
+        ):
             findings.append(Finding(line, "passive_voice", s[:90],
                 "prefer active voice (name the actor)"))
 

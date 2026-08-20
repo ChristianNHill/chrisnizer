@@ -2,8 +2,8 @@
 
 If you want to sound more human, or really, more like me, this skill does that. It
 is a writing linter tuned to my own voice, packaged as a Claude Code skill. It finds
-where a draft drifts into AI-writing tells or away from my house rules, and fixes the
-mechanical parts, so a draft comes back sounding like me instead of like a model.
+where a draft drifts into AI-writing tells or away from my house rules, then fixes
+the mechanical parts. A draft comes back sounding like me instead of like a model.
 
 It does not rewrite on its own. The linter flags; I (or an agent running the skill)
 apply the judgment calls in voice. The rules live in [`VOICE.md`](VOICE.md), built
@@ -17,14 +17,19 @@ whitespace.
 
 Flagged for me to apply in voice: em dashes, filler and boosterism, hedging,
 negative parallelism ("not just X but Y"), passive voice, sentences that run past
-one idea, first person plural in solo writing, labelled bullet fragments where a
-paragraph belongs, and Title Case headings.
+one idea, runs of three or more short sentences in the same shape, first person
+plural in solo writing, labelled bullet fragments where a paragraph belongs, and
+Title Case headings.
 
 It also carries the general AI-writing tells, added where they do not overlap the
 personal rules: signposting ("let's dive in"), sycophancy ("great question"),
 chatbot artifacts ("I hope this helps"), conversational openers, authority tropes
 ("at its core"), knowledge-cutoff disclaimers, and decorative emoji. These come
 from the "Signs of AI writing" taxonomy that the humanizer skill is based on.
+
+Two things stay out of the linter because no regex decides them, so `SKILL.md`
+asks the reader to check them by hand: a strong claim the piece asserts but never
+justifies, and two clauses in different paragraphs echoing the same shape.
 
 ## Use it
 

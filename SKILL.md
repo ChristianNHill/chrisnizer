@@ -44,13 +44,35 @@ Chris's voice:
 - **filler, ai_vocab, boosterism, hedge**: cut the word or say it plainly. Do not
   swap one inflated word for another.
 - **negative_parallelism** ("not just X but Y"): rewrite as one plain clause.
+- **pseudo_cleft** ("the shape is what should hold"): name the real subject and
+  verb directly ("the shape should hold" becomes "the idea is that").
+- **fragment_colon** ("Three fingerprints, all built from signatures:", "The Batch
+  API is real:"): give the clause before the colon a real verb ("Three methods
+  built from signatures are:"), or drop a dramatic "is real" assertion and
+  state the point plainly. The check only fires when a list follows the colon,
+  so a colon leading into a code block or into explanatory prose is left alone.
 - **passive_voice**: name the actor and make it active, when it reads better.
 - **long_sentence**: split into one idea per sentence.
+- **staccato**: three or more short sentences in a row on the same opening word
+  ("It defers... It exposes neither... It reports...") reads as a list dressed as
+  prose. Merge two of them or vary the shape. Two in a row is punch, leave it.
 - **plural_first_person**: change we/our to I/my for solo writing. Leave it under
   `--academic`.
 - **label_bullet**: fold labelled fragments into a flowing paragraph when the
   content is narrative.
 - **title_case_heading**: sentence case, first word capitalised only.
+
+## What the linter cannot see
+
+Two things you check by reading, because no regex catches them:
+
+- **Claims written as cheques**: a strong short assertion ("the order matters")
+  lands well but is only asserted. Check that the piece cashes it later, and if
+  it does not, either justify it on the spot or cut it.
+- **Structural rhyme**: two clauses echoing the same shape in different
+  paragraphs ("and what each fix is worth", "and report what it moved") read as
+  a motif if deliberate and as repetition if not. Decide which it is, then keep
+  it or break one of them.
 
 ## Workflow
 

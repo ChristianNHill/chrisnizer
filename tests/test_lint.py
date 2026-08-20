@@ -72,3 +72,11 @@ def test_clean_text_passes():
     clean = "I am writing to ask for an hour with the board this week. " \
             "I want to run two demos on it. Would Thursday work?"
     assert lint(clean) == []
+
+
+def test_staccato_run_flagged():
+    assert "staccato" in cats("It defers the cost. It exposes neither key. It reports what moved.")
+    # two in a row is punch, not a pattern
+    assert "staccato" not in cats("It defers the cost. It exposes neither key.")
+    # short sentences with varied openings are fine
+    assert "staccato" not in cats("It defers the cost. Nothing leaks. I report the delta.")

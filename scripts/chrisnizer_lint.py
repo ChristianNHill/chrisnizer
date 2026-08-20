@@ -60,6 +60,19 @@ HEDGES = [
 # "rather" is a hedge only on its own ("rather good"), not in "rather than".
 _HEDGE_RATHER = re.compile(r"\brather\b(?!\s+than\b)", re.IGNORECASE)
 
+# Pseudo-cleft abstraction: "X is what should Y" / "the shape is what holds".
+# A vague noun stands in for the real subject instead of naming it.
+_PSEUDO_CLEFT = re.compile(r"\b(?:is|was|are|were)\s+what\b", re.IGNORECASE)
+
+# Rough finite-verb detector for the fragment_colon check: common copulas,
+# auxiliaries, and modals. Deliberately does not pattern-match word endings
+# (a plural noun like "signatures" ends in -s but is not a verb).
+_HAS_VERB = re.compile(
+    r"\b(?:is|are|was|were|be|been|being|am|has|have|had|do|does|did|"
+    r"can|could|will|would|shall|should|may|might|must)\b",
+    re.IGNORECASE,
+)
+
 NEGATIVE_PARALLELISM = [
     "not only", "not just", "isn't just", "it's not just", "not merely",
     "it's not about", "it is not just",
@@ -106,6 +119,12 @@ MECHANICAL = [
 
 LONG_SENTENCE_WORDS = 30
 
+# staccato: a run of short sentences all opening on the same word reads as a
+# list dressed as prose ("It defers... It exposes neither..."). Two is punch,
+# three is a pattern.
+STACCATO_RUN = 3
+STACCATO_WORDS = 12
+
 
 @dataclass
 class Finding:
@@ -143,7 +162,8 @@ def _phrase_hits(masked: str, phrases: list[str]) -> list[str]:
 def lint(text: str, academic: bool = False) -> list[Finding]:
     findings: list[Finding] = []
     in_fence = False
-    for i, raw in enumerate(text.splitlines(), 1):
+    all_lines = text.splitlines()
+    for i, raw in enumerate(all_lines, 1):
         if raw.lstrip().startswith("```"):
             in_fence = not in_fence
             continue
@@ -178,6 +198,10 @@ def lint(text: str, academic: bool = False) -> list[Finding]:
             findings.append(Finding(i, "hedge", f"'rather' in: {raw.strip()[:80]}",
                 "say it directly; 'rather than' comparisons are fine"))
 
+        if _PSEUDO_CLEFT.search(m):
+            findings.append(Finding(i, "pseudo_cleft", raw.strip()[:80],
+                "name the real subject and verb directly, drop the 'is what' hedge"))
+
         for cat, phrases, sug in (
             ("signposting", SIGNPOSTING, "do the thing instead of announcing it"),
             ("sycophancy", SYCOPHANCY, "drop the flattery; get to the content"),
@@ -198,6 +222,35 @@ def lint(text: str, academic: bool = False) -> list[Finding]:
                 findings.append(Finding(i, "plural_first_person",
                     f"'{hit}' in: {raw.strip()[:80]}",
                     "first person singular (I/my) for solo writing; use --academic for papers"))
+
+        # verbless fragment previewing a list: "Three fingerprints, all built
+        # from signatures:" reads like dramatic copy, not a sentence.
+        if raw.rstrip().endswith(":") and not raw.lstrip().startswith(("#", "-", "*", ">", "|")):
+            clause = raw.rstrip()[:-1].strip()
+            words = clause.split()
+            # "," narrows this to the apposition/participle shape ("Three X,
+            # all built from Y:") rather than any short verbless clause, since
+            # an ordinary complete sentence can end in a colon before a list.
+            # The tell is a verbless headline previewing a LIST, so require a list to
+            # follow. A colon handing off to a code block or to explanatory prose is
+            # structural, and flagging those removes punctuation the document needs.
+            following = next((l for l in all_lines[i:] if l.strip()), "").lstrip()
+            previews_a_list = bool(re.match(r"(?:[-*+]\s|\d+[.)]\s)", following))
+            # Five words, not three: a short pointer ("Four questions, in order:") is
+            # navigation, while the tell carries a modifier phrase ("Three fingerprints,
+            # all built from signatures:").
+            has_comma_fragment = (
+                len(words) >= 5
+                and "," in clause
+                and previews_a_list
+                and not _HAS_VERB.search(clause)
+            )
+            # "X is real:" has a copula but is the same dramatic-assertion
+            # tell used to preview a list ("The Batch API is real:").
+            is_real_assertion = re.search(r"\bis real$", clause, re.IGNORECASE)
+            if has_comma_fragment or is_real_assertion:
+                findings.append(Finding(i, "fragment_colon", raw.strip()[:80],
+                    "drop the dramatic assertion; state the point plainly"))
 
         # label-style bullet where a flowing sentence would read better
         if re.match(r"\s*[-*]\s+\*\*[^*]+:\*\*", raw):
@@ -251,11 +304,30 @@ def lint(text: str, academic: bool = False) -> list[Finding]:
     )
     _passive_verbal = _aux + _verbal + r"\b"
 
+    run: list[tuple[int, str]] = []  # (line, sentence) for the current staccato run
+
+    def flush_run() -> None:
+        if len(run) >= STACCATO_RUN:
+            findings.append(Finding(run[0][0], "staccato",
+                " / ".join(s[:30] for _, s in run),
+                f"{len(run)} short sentences in a row opening on the same word; "
+                "merge two or vary the shape"))
+        run.clear()
+
     for mtch in re.finditer(r"[^.!?]*[.!?]", full, re.DOTALL):
         s = mtch.group().strip()
         if not s:
             continue
         line = line_of(mtch.start())
+
+        words = s.split()
+        opener = words[0].lower().strip(",;:\"'") if words else ""
+        if len(words) <= STACCATO_WORDS and (not run or run[-1][1].split()[0].lower().strip(",;:\"'") == opener):
+            run.append((line, s))
+        else:
+            flush_run()
+            if len(words) <= STACCATO_WORDS:
+                run.append((line, s))
         # count the clause before a colon: a "sentence: a, b, c" list is long
         # because of the list, not because it packs several ideas.
         head = s.split(":", 1)[0]
@@ -266,6 +338,8 @@ def lint(text: str, academic: bool = False) -> list[Finding]:
         if re.search(_passive_by, s, re.I) or re.search(_passive_verbal, s, re.I):
             findings.append(Finding(line, "passive_voice", s[:90],
                 "prefer active voice (name the actor)"))
+
+    flush_run()
 
     return findings
 

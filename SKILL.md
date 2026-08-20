@@ -53,9 +53,11 @@ Chris's voice:
   so a colon leading into a code block or into explanatory prose is left alone.
 - **passive_voice**: name the actor and make it active, when it reads better.
 - **long_sentence**: split into one idea per sentence.
-- **staccato**: three or more short sentences in a row on the same opening word
+- **staccato**: three or more short sentences in a row with the same shape
   ("It defers... It exposes neither... It reports...") reads as a list dressed as
-  prose. Merge two of them or vary the shape. Two in a row is punch, leave it.
+  prose. Same shape means the same opening word, or different pronoun subjects
+  doing the same job. Merge two of them or vary one. Two in a row is punch, so
+  leave it.
 - **plural_first_person**: change we/our to I/my for solo writing. Leave it under
   `--academic`.
 - **label_bullet**: fold labelled fragments into a flowing paragraph when the

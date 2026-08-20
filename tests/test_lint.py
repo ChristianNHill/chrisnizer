@@ -80,3 +80,8 @@ def test_staccato_run_flagged():
     assert "staccato" not in cats("It defers the cost. It exposes neither key.")
     # short sentences with varied openings are fine
     assert "staccato" not in cats("It defers the cost. Nothing leaks. I report the delta.")
+
+
+def test_staccato_matches_shape_not_just_word():
+    # different pronoun subjects, same shape
+    assert "staccato" in cats("It defers the cost. This exposes no key. That reports the delta.")

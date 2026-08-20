@@ -119,11 +119,13 @@ MECHANICAL = [
 
 LONG_SENTENCE_WORDS = 30
 
-# staccato: a run of short sentences all opening on the same word reads as a
-# list dressed as prose ("It defers... It exposes neither..."). Two is punch,
-# three is a pattern.
+# staccato: a run of short, similarly-shaped sentences reads as a list dressed
+# as prose ("It defers... It exposes neither..."). Two is punch, three is a
+# pattern. Same shape means the same opening word, or two different pronoun
+# subjects doing the same job ("It defers... This exposes...").
 STACCATO_RUN = 3
 STACCATO_WORDS = 12
+STACCATO_PRONOUNS = {"it", "this", "that", "they", "these", "those", "he", "she", "i", "we", "you"}
 
 
 @dataclass
@@ -304,13 +306,20 @@ def lint(text: str, academic: bool = False) -> list[Finding]:
     )
     _passive_verbal = _aux + _verbal + r"\b"
 
+    def _opener(sentence: str) -> str:
+        w = sentence.split()
+        return w[0].lower().strip(",;:\"'()") if w else ""
+
+    def _same_shape(a: str, b: str) -> bool:
+        return a == b or (a in STACCATO_PRONOUNS and b in STACCATO_PRONOUNS)
+
     run: list[tuple[int, str]] = []  # (line, sentence) for the current staccato run
 
     def flush_run() -> None:
         if len(run) >= STACCATO_RUN:
             findings.append(Finding(run[0][0], "staccato",
                 " / ".join(s[:30] for _, s in run),
-                f"{len(run)} short sentences in a row opening on the same word; "
+                f"{len(run)} short, similarly-shaped sentences in a row; "
                 "merge two or vary the shape"))
         run.clear()
 
@@ -321,8 +330,8 @@ def lint(text: str, academic: bool = False) -> list[Finding]:
         line = line_of(mtch.start())
 
         words = s.split()
-        opener = words[0].lower().strip(",;:\"'") if words else ""
-        if len(words) <= STACCATO_WORDS and (not run or run[-1][1].split()[0].lower().strip(",;:\"'") == opener):
+        opener = _opener(s)
+        if len(words) <= STACCATO_WORDS and (not run or _same_shape(_opener(run[-1][1]), opener)):
             run.append((line, s))
         else:
             flush_run()

@@ -120,6 +120,28 @@ CUTOFF_DISCLAIMER = [
 # (x, degree, approx) so technical prose is not flagged.
 _EMOJI = re.compile("[\U0001F300-\U0001FAFF\U0001F1E6-\U0001F1FF\U00002700-\U000027BF\U00002B00-\U00002BFF]")
 
+# stilted: literary or old-fashioned turns that pass every rule above and still read
+# oddly to a newcomer ("and so does a tap on it", "off means off", "the garden's
+# business", "sits or stands about"). Plain modern English says the same thing flatly.
+STILTED = [
+    "upon", "amid", "amidst", "whilst", "thereof", "wherein", "whereby", "lest",
+    "thus", "hence", "henceforth", "in place of", "in the style of", "a wash of",
+]
+_STILTED_SHAPES = [
+    (re.compile(r"\b(?:and|as) so (?:does|do|did|is|are|was|were)\b", re.I),
+     "inverted 'and so does X': say 'X also works'"),
+    (re.compile(r"\bas (?:a|an|the) [\w' ]{1,30}? (?:does|do|did)\b", re.I),
+     "'as a X does': say 'the way a X does', or 'like a X'"),
+    (re.compile(r"\b(\w+) means \1\b", re.I),
+     "tautology ('off means off'): say what actually happens"),
+    (re.compile(r"\b(?:is|are|was|were) (?:the |its |their )?\w+'s (?:business|affair|concern|lookout)\b", re.I),
+     "'is the X's business': say who does it"),
+    (re.compile(r"\b(?:stands?|sits?|lies?|push(?:es|ed)?|mills?|lounges?|potters?) about\b", re.I),
+     "'about' for 'around': say 'around', or name what happens"),
+    (re.compile(r"\bsets? (?:it|them|him|her|you) \w+ing\b", re.I),
+     "'sets it wandering': say 'it starts to wander'"),
+]
+
 PLURAL_FIRST_PERSON = ["we", "our", "ours", "us", "we're", "we've", "we'd", "ourselves"]
 
 # Mechanical, safe to auto-fix.
@@ -226,6 +248,13 @@ def lint(text: str, academic: bool = False) -> list[Finding]:
         ):
             for hit in _phrase_hits(m, phrases):
                 findings.append(Finding(i, cat, f"'{hit}' in: {raw.strip()[:80]}", sug))
+
+        for hit in _word_hits(m, STILTED):
+            findings.append(Finding(i, "stilted", f"'{hit}' in: {raw.strip()[:80]}",
+                "literary turn; say it the plain modern way"))
+        for shape, sug in _STILTED_SHAPES:
+            if shape.search(m):
+                findings.append(Finding(i, "stilted", raw.strip()[:80], sug))
 
         if _EMOJI.search(raw):
             findings.append(Finding(i, "emoji", raw.strip()[:80],

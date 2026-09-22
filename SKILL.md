@@ -66,14 +66,24 @@ Chris's voice:
 - **label_bullet**: fold labelled fragments into a flowing paragraph when the
   content is narrative.
 - **title_case_heading**: sentence case, first word capitalised only.
+- **stilted**: a literary or old-fashioned turn ("and so does a tap on it", "off
+  means off", "the garden's business", "stands about", "in place of"). Say it the
+  plain modern way a newcomer reads once: "clicking the tree also works".
 
 ## What the linter cannot see
 
-Two things you check by reading, because no regex catches them:
+Three things you check by reading, because no regex catches them:
 
 - **Claims written as cheques**: a strong short assertion ("the order matters")
   lands well but is only asserted. Check that the piece cashes it later, and if
   it does not, either justify it on the spot or cut it.
+- **The stranger test**: read each sentence as someone new to the subject. A
+  sentence can pass every rule and still be private shorthand: jargon never
+  explained ("a body" for a simulation), a dropped "that" ("the policy upstream
+  ships"), a poetic image ("a lawn sits in a bowl of rock"), or a rule stated
+  as a riddle ("your shakes keep working up to twelve"). The rules can cause
+  this: cutting filler strips words like "that", and forcing active voice bends
+  sentences. Keep the function words and say it plainly.
 - **Structural rhyme**: two clauses echoing the same shape in different
   paragraphs ("and what each fix is worth", "and report what it moved") read as
   a motif if deliberate and as repetition if not. Decide which it is, then keep
@@ -87,6 +97,7 @@ Two things you check by reading, because no regex catches them:
 4. Apply the flagged judgment items by rewriting in Chris's voice: lede first,
    flowing paragraphs, one idea per sentence, active, plain, no dashes.
 5. Re-run the linter and confirm it is clean or that anything left is deliberate.
+   Clean is necessary, not sufficient: do the stranger test before calling it done.
 6. Report what changed in a short summary, not a wall of diffs.
 
 ## Rule

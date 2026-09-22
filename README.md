@@ -18,8 +18,9 @@ whitespace.
 Flagged for me to apply in voice: em dashes, filler and boosterism, hedging,
 negative parallelism ("not just X but Y"), passive voice, sentences that run past
 one idea, runs of three or more short sentences in the same shape, first person
-plural in solo writing, labelled bullet fragments where a paragraph belongs, and
-Title Case headings.
+plural in solo writing, labelled bullet fragments where a paragraph belongs,
+Title Case headings, and stilted literary turns ("and so does a tap on it", "off
+means off").
 
 It also carries the general AI-writing tells, added where they do not overlap the
 personal rules: signposting ("let's dive in"), sycophancy ("great question"),
@@ -27,9 +28,10 @@ chatbot artifacts ("I hope this helps"), conversational openers, authority trope
 ("at its core"), knowledge-cutoff disclaimers, and decorative emoji. These come
 from the "Signs of AI writing" taxonomy that the humanizer skill is based on.
 
-Two things stay out of the linter because no regex decides them, so `SKILL.md`
+Three things stay out of the linter because no regex decides them, so `SKILL.md`
 asks the reader to check them by hand: a strong claim the piece asserts but never
-justifies, and two clauses in different paragraphs echoing the same shape.
+justifies, two clauses in different paragraphs echoing the same shape, and a
+sentence that passes every rule but still reads as private shorthand to a newcomer.
 
 ## Use it
 

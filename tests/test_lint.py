@@ -92,3 +92,21 @@ def test_fragment_colon_skips_real_sentence_with_pronoun_subject():
     assert "fragment_colon" not in cats(text)
     frag = "Three fingerprints, all built from signatures:\n\n- one\n- two\n"
     assert "fragment_colon" in cats(frag)
+
+
+def test_stilted_turns_flagged():
+    for line in ("F shakes the tree, and so does a tap on it.",
+                 "Click to step it, and off means off for the ducks.",
+                 "What they hear is the garden's business.",
+                 "A duck sits or stands about until boredom sets it wandering.",
+                 "It shows its mood, as a Chao does.",
+                 "A hand appears in place of the cursor."):
+        assert "stilted" in cats(line), line
+
+
+def test_stilted_leaves_plain_prose_alone():
+    for line in ("Add --blind to hide who is who until you quit.",
+                 "Clicking the tree also shakes fruit down.",
+                 "It sits or stands around until it gets bored.",
+                 "It shows its mood the way a Chao does."):
+        assert "stilted" not in cats(line), line

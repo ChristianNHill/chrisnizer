@@ -110,3 +110,22 @@ def test_stilted_leaves_plain_prose_alone():
                  "It sits or stands around until it gets bored.",
                  "It shows its mood the way a Chao does."):
         assert "stilted" not in cats(line), line
+
+
+def test_quoted_examples_not_flagged():
+    assert cats('Rewrite "not just X but Y" as one plain clause.') == set()
+    assert "negative_parallelism" in cats("It is not just fast but reliable.")
+
+
+def test_ui_flags_telegraphese_and_mixed_lists():
+    assert "telegraphic" in cats("Closing window ends garden and saves state.", ui=True)
+    assert "mixed_list" in cats("Its needs are hunger, thirst, sleep, tired and bored.", ui=True)
+    assert not {"telegraphic", "mixed_list"} & cats(
+        "Closing the window saves the garden. Its needs are hungry, thirsty, sleepy, tired and bored.", ui=True)
+    assert "telegraphic" not in cats("Closing window ends garden and saves state.")
+
+
+def test_decimals_and_et_al_do_not_split_sentences():
+    long = ("The brain is the connectome of 2.7 million connections from Dorkenwald et al. "
+            "(2024), which I run as spiking neurons on five ducks in a garden, each with its own copy.")
+    assert "long_sentence" in cats(long)

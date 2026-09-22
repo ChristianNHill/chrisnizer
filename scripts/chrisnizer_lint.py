@@ -12,9 +12,11 @@ Usage:
     chrisnizer_lint.py --json FILE            # findings as JSON
     chrisnizer_lint.py --fix FILE             # apply mechanical fixes in place
     chrisnizer_lint.py --academic FILE        # allow "we"/"our" (paper mode)
+    chrisnizer_lint.py --ui FILE              # also flag clipped text (READMEs, help, UI)
     cat draft.md | chrisnizer_lint.py -       # read stdin
 
-Stdlib only. Skips fenced code blocks, inline code, and URLs.
+Stdlib only. Skips fenced code blocks, inline code, URLs, and text in double
+quotes, so a doc that quotes a tell as an example is not flagged for it.
 """
 
 from __future__ import annotations
@@ -142,6 +144,19 @@ _STILTED_SHAPES = [
      "'sets it wandering': say 'it starts to wander'"),
 ]
 
+# --ui: text a newcomer reads once (a README, help text, labels) fails by being
+# too clipped as often as by being padded. A sentence with no article, possessive
+# or pronoun reads as telegraphese ("Closing window ends garden"), and a list
+# that mixes nouns with adjectives ("hunger, sleep, tired") reads as unfinished.
+TELEGRAPHIC_WORDS = 5
+_DETERMINERS = {
+    "a", "an", "the", "its", "their", "this", "that", "these", "those", "your",
+    "my", "his", "her", "our", "each", "every", "some", "any", "no", "all",
+    "it", "they", "you", "i", "we", "he", "she", "them", "me", "us", "one",
+}
+_ADJ_END = re.compile(r"\w{2,}(?:y|ed|ful|ous|ish|less|ive|able)$")
+_NOUN_END = re.compile(r"\w{2,}(?:ion|ness|ment|ity|er|th|ure|dom|ship|ance|ence|st)$")
+
 PLURAL_FIRST_PERSON = ["we", "our", "ours", "us", "we're", "we've", "we'd", "ourselves"]
 
 # Mechanical, safe to auto-fix.
@@ -174,11 +189,13 @@ class Finding:
 
 _URL = re.compile(r"https?://\S+")
 _INLINE_CODE = re.compile(r"`[^`]*`")
+_QUOTED = re.compile(r'"[^"\n]*"|\u201c[^\u201d\n]*\u201d')
 
 
 def _mask_line(line: str) -> str:
     line = _URL.sub(lambda m: " " * len(m.group()), line)
     line = _INLINE_CODE.sub(lambda m: " " * len(m.group()), line)
+    line = _QUOTED.sub(lambda m: " " * len(m.group()), line)
     return line
 
 
@@ -195,7 +212,22 @@ def _phrase_hits(masked: str, phrases: list[str]) -> list[str]:
     return [p for p in phrases if p.lower() in low]
 
 
-def lint(text: str, academic: bool = False) -> list[Finding]:
+def _mixed_list(sentence: str) -> bool:
+    """A run of three or more one- or two-word list items where some end like
+    adjectives and others like nouns."""
+    parts = re.split(r",\s*|\s+(?:and|or)\s+", sentence.strip(" .!?"))
+    best = run = []
+    for part in parts:
+        run = run + [part] if 0 < len(part.split()) <= 2 else []
+        best = run if len(run) > len(best) else best
+    if len(best) < 3:
+        return False
+    last = [p.split()[-1].lower() for p in best]
+    nouns = {w for w in last if _NOUN_END.match(w)}
+    return bool(nouns) and any(_ADJ_END.match(w) for w in last if w not in nouns)
+
+
+def lint(text: str, academic: bool = False, ui: bool = False) -> list[Finding]:
     findings: list[Finding] = []
     in_fence = False
     all_lines = text.splitlines()
@@ -377,11 +409,13 @@ def lint(text: str, academic: bool = False) -> list[Finding]:
                 "merge two or vary the shape"))
         run.clear()
 
-    for mtch in re.finditer(r"[^.!?]*[.!?]", full, re.DOTALL):
+    # A sentence ends at . ! or ? followed by space or the end, so "2.7 million"
+    # and "et al. (2024)" do not split one sentence into fragments.
+    for mtch in re.finditer(r".+?(?:(?<!\bal)(?<!\be\.g)(?<!\bi\.e)[.!?](?=\s|$)|$)", full, re.DOTALL):
         s = mtch.group().strip()
         if not s:
             continue
-        line = line_of(mtch.start())
+        line = line_of(mtch.start() + len(mtch.group()) - len(mtch.group().lstrip()))
 
         words = s.split()
         opener = _opener(s)
@@ -398,11 +432,19 @@ def lint(text: str, academic: bool = False) -> list[Finding]:
         if n > LONG_SENTENCE_WORDS:
             findings.append(Finding(line, "long_sentence", s[:90],
                 f"{n} words; one idea per sentence, consider splitting"))
+        if ui and n >= TELEGRAPHIC_WORDS and ":" not in s and opener not in _IMPERATIVES and not (
+            {w.lower().strip(",;:\"'()") for w in words} & _DETERMINERS
+        ):
+            findings.append(Finding(line, "telegraphic", s[:90],
+                "no article, possessive or pronoun; put back the small words a newcomer needs"))
+        if ui and _mixed_list(s):
+            findings.append(Finding(line, "mixed_list", s[:90],
+                "the list mixes nouns and adjectives; make every item the same kind of word"))
         if opener not in _IMPERATIVES and (
             re.search(_passive_by, s, re.I) or re.search(_passive_verbal, s, re.I)
         ):
             findings.append(Finding(line, "passive_voice", s[:90],
-                "prefer active voice (name the actor)"))
+                "prefer active voice (name the actor), unless a forced active reads worse"))
 
     flush_run()
 
@@ -460,6 +502,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--fix", action="store_true", help="apply mechanical fixes in place")
     ap.add_argument("--academic", action="store_true", help="allow we/our (paper mode)")
+    ap.add_argument("--ui", action="store_true", help="also flag clipped text: READMEs, help, UI")
     args = ap.parse_args(argv)
 
     all_json = {}
@@ -471,7 +514,7 @@ def main(argv: list[str] | None = None) -> int:
             if n:
                 open(path, "w", encoding="utf-8").write(fixed)
             text = fixed
-        findings = lint(text, academic=args.academic)
+        findings = lint(text, academic=args.academic, ui=args.ui)
         total += len(findings)
         if args.json:
             all_json[path] = [asdict(f) for f in findings]

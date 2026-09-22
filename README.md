@@ -20,7 +20,11 @@ negative parallelism ("not just X but Y"), passive voice, sentences that run pas
 one idea, runs of three or more short sentences in the same shape, first person
 plural in solo writing, labelled bullet fragments where a paragraph belongs,
 Title Case headings, and stilted literary turns ("and so does a tap on it", "off
-means off").
+means off"). With `--ui`, for READMEs and on-screen text, it also flags clipped
+sentences with no articles or pronouns, and lists that mix nouns and adjectives.
+
+It skips text in double quotes, so a doc can quote a tell as an example.
+`EXAMPLES.md` has real before-and-after rewrites.
 
 It also carries the general AI-writing tells, added where they do not overlap the
 personal rules: signposting ("let's dive in"), sycophancy ("great question"),
@@ -41,6 +45,7 @@ As a Claude Code skill, invoke `/chrisnizer` on a draft. Or run the linter direc
 python3 scripts/chrisnizer_lint.py draft.md          # report
 python3 scripts/chrisnizer_lint.py --fix draft.md    # apply mechanical fixes
 python3 scripts/chrisnizer_lint.py --academic draft.md   # allow we/our for papers
+python3 scripts/chrisnizer_lint.py --ui README.md    # also flag clipped text
 cat draft.md | python3 scripts/chrisnizer_lint.py -  # from stdin
 ```
 

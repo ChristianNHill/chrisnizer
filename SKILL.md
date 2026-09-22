@@ -27,9 +27,14 @@ python3 scripts/chrisnizer_lint.py DRAFT.md          # report
 python3 scripts/chrisnizer_lint.py --json DRAFT.md   # findings as JSON
 python3 scripts/chrisnizer_lint.py --fix DRAFT.md    # apply mechanical fixes in place
 python3 scripts/chrisnizer_lint.py --academic DRAFT.md   # allow we/our for papers
+python3 scripts/chrisnizer_lint.py --ui README.md    # also flag clipped text
 ```
 
-For pasted text, write it to a temp file and lint that.
+Use `--ui` for text a newcomer reads once: a README, help text, labels, on-screen
+messages. That text fails by being too clipped as often as by being padded.
+
+For pasted text, write it to a temp file and lint that. The linter skips text in
+double quotes, so a doc that quotes a tell as an example is not flagged for it.
 
 ## What the linter decides vs what you decide
 
@@ -45,7 +50,9 @@ Chris's voice:
   swap one inflated word for another. Never use "silently" or "quietly", not even
   in technical prose where they look descriptive. Say what happened, so "it fails
   silently" becomes "it fails with no notification" or "it dies with no
-  notification".
+  notification". Filler means intensifiers and padding, never function words:
+  do not cut "that", "the" or "a" to shorten a sentence. "The walking policy
+  that ships upstream" is right, and "the walking policy upstream ships" is not.
 - **negative_parallelism** ("not just X but Y"): rewrite as one plain clause.
 - **pseudo_cleft** ("the shape is what should hold"): name the real subject and
   verb directly ("the shape should hold" becomes "the idea is that").
@@ -55,6 +62,9 @@ Chris's voice:
   state the point plainly. The check only fires when a list follows the colon,
   so a colon leading into a code block or into explanatory prose is left alone.
 - **passive_voice**: name the actor and make it active, when it reads better.
+  Keep the passive when the actor does not matter or a forced active reads worse:
+  "a thrown duck trusts you less" is fine, and "the tree's shaking by you" is not
+  an improvement.
 - **long_sentence**: split into one idea per sentence.
 - **staccato**: three or more short sentences in a row with the same shape
   ("It defers... It exposes neither... It reports...") reads as a list dressed as
@@ -69,6 +79,11 @@ Chris's voice:
 - **stilted**: a literary or old-fashioned turn ("and so does a tap on it", "off
   means off", "the garden's business", "stands about", "in place of"). Say it the
   plain modern way a newcomer reads once: "clicking the tree also works".
+- **telegraphic** (`--ui` only): a sentence with no article, possessive or
+  pronoun ("Closing window ends garden"). Put the small words back.
+- **mixed_list** (`--ui` only): a list that mixes nouns and adjectives ("hunger,
+  thirst, sleep, tired, bored"). Make every item the same kind of word ("hungry,
+  thirsty, sleepy, tired, bored").
 
 ## What the linter cannot see
 
@@ -92,10 +107,12 @@ Three things you check by reading, because no regex catches them:
 ## Workflow
 
 1. Read `VOICE.md`.
-2. Run `scripts/chrisnizer_lint.py` on the draft (`--academic` if it is a paper).
+2. Run `scripts/chrisnizer_lint.py` on the draft (`--academic` if it is a paper,
+   `--ui` if it is a README or on-screen text).
 3. Run `--fix` to clear the mechanical findings.
 4. Apply the flagged judgment items by rewriting in Chris's voice: lede first,
    flowing paragraphs, one idea per sentence, active, plain, no dashes.
+   `EXAMPLES.md` has real before-and-after pairs to calibrate against.
 5. Re-run the linter and confirm it is clean or that anything left is deliberate.
    Clean is necessary, not sufficient: do the stranger test before calling it done.
 6. Report what changed in a short summary, not a wall of diffs.

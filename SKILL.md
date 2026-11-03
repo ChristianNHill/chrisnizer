@@ -3,8 +3,9 @@ name: chrisnizer
 description: >
   If you want to sound more human, or really, more like Chris Hill, this skill
   does that. It flags AI-writing tells and drift from his house rules (no em
-  dashes, no boosterism, active voice, first person singular, flowing paragraphs,
-  one idea per sentence, lede first), auto-fixes the mechanical ones, and
+  dashes, no boosterism, active voice, first person singular or neutral voice for
+  team docs, named sets instead of vague counts, one idea per sentence, lede first),
+  auto-fixes the mechanical ones, and
   rewrites the judgment calls in his voice. Use when asked to chrisnize, de-slop,
   humanize, or fix the tone of a draft, or on /chrisnizer.
 ---
@@ -28,7 +29,12 @@ python3 scripts/chrisnizer_lint.py --json DRAFT.md   # findings as JSON
 python3 scripts/chrisnizer_lint.py --fix DRAFT.md    # apply mechanical fixes in place
 python3 scripts/chrisnizer_lint.py --academic DRAFT.md   # allow we/our for papers
 python3 scripts/chrisnizer_lint.py --ui README.md    # also flag clipped text
+python3 scripts/chrisnizer_lint.py --neutral DOC.md  # team or stakeholder doc: no I/my/we/our
 ```
+
+Use `--neutral` for a document a team or a stakeholder reads, such as a system
+breakdown, a plan or a briefing. It should read the same whoever wrote it, so it
+flags "I" and "my" as well as "we" and "our".
 
 Use `--ui` for text a newcomer reads once: a README, help text, labels, on-screen
 messages. That text fails by being too clipped as often as by being padded.
@@ -79,6 +85,30 @@ Chris's voice:
 - **stilted**: a literary or old-fashioned turn ("and so does a tap on it", "off
   means off", "the garden's business", "stands about", "in place of"). Say it the
   plain modern way a newcomer reads once: "clicking the tree also works".
+- **vague_set**: "the rest", "a few", "several", "most gaps", "rarely", or a set
+  named only by its size ("the three", "two scores") with no list after it. Name
+  the items or give the number: "Two scores have no cohort series" becomes
+  "Prompt quality and delegation depth have no cohort series", and "rarely names
+  a habit" becomes "named 0 of 41". A size followed by a colon, parentheses or an
+  "X, Y and Z" list is fine.
+- **positional**: "above the person", "upstream", "later stages", "the table
+  below", "the next slide". The reader has to guess the place. Name the section,
+  figure, step or people: "views above the person" becomes "views for teams and
+  managers", and "later stages hide it" becomes "the task roll-up hides it".
+- **first_person** (`--neutral` only): "I" or "my" in a team doc. Name the doc, the
+  team or the thing instead: "I estimate" becomes "the estimate is".
+- **dramatic_closer**: a punchy summary built on "nobody" ("Upkeep and hosting are
+  the costs nobody has measured"). It reads as AI copy and is often not literally
+  true. Check the claim, then say what is and isn't known: "Hosting and the test
+  accounts aren't priced yet."
+- **fragment**: a prose sentence with no subject and verb, such as one that opens
+  on a participle ("Labeled 2 of 3 users.") or ends on one ("Counsel review needed
+  before relying on it."). Write a full sentence: "Legal counsel hasn't reviewed
+  it, so it can't be relied on yet."
+- **long_paragraph**: over 120 words or 6 sentences. If it walks through parallel
+  items (options with their costs and downsides, dependencies, findings), turn it
+  into a table or a list with a one-sentence lead. Keep it as a paragraph only
+  when it is one line of reasoning.
 - **telegraphic** (`--ui` only): a sentence with no article, possessive or
   pronoun ("Closing window ends garden"). Put the small words back.
 - **mixed_list** (`--ui` only): a list that mixes nouns and adjectives ("hunger,
@@ -104,11 +134,40 @@ Three things you check by reading, because no regex catches them:
   a motif if deliberate and as repetition if not. Decide which it is, then keep
   it or break one of them.
 
+## What readers of a team document catch
+
+These came from a stakeholder doc that passed every rule above and was still sent
+back. Check each one by reading:
+
+- **One finding per sentence, and say when two have different sources.** A
+  sentence that pairs how the system works today with a separate experiment's
+  result reads as one claim. Split them and label each: "Today: ..." and
+  "Separate test: ...".
+- **Count in the reader's units.** Give the number the reader thinks in, not the
+  implementation detail: "3 providers (ChatGPT, Claude, Copilot)", not "7 web
+  addresses handled by three adapters".
+- **Define a term at first use.** Spell out an abbreviation or coined term the
+  first time it appears ("a work package (WP) is a named chunk of build work"),
+  and don't use a coined verb ("size them") without saying what it means.
+- **Don't invent groups, owners or statements.** Write only the teams, roles and
+  decisions that exist. "The research team owns it" was wrong when everyone was
+  one team. Quote a stakeholder's goal in their own words, and don't attribute a
+  goal nobody stated.
+- **Say what each number rests on, every time it appears.** Mark a figure from
+  synthetic data, a test or real use where it is quoted, not once at the top. A
+  footnote marker on each use works.
+- **Short has to stay true.** A tightened sentence can drift from the facts. Check
+  each punchy line against the table or source it summarises before keeping it.
+- **Paragraph or table.** Use a paragraph for one line of reasoning. When items
+  share the same attributes, such as options that each have a size and
+  downsides, use a table.
+
 ## Workflow
 
 1. Read `VOICE.md`.
 2. Run `scripts/chrisnizer_lint.py` on the draft (`--academic` if it is a paper,
-   `--ui` if it is a README or on-screen text).
+   `--ui` if it is a README or on-screen text, `--neutral` if a team or a
+   stakeholder reads it).
 3. Run `--fix` to clear the mechanical findings.
 4. Apply the flagged judgment items by rewriting in Chris's voice: lede first,
    flowing paragraphs, one idea per sentence, active, plain, no dashes.

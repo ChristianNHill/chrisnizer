@@ -13,6 +13,7 @@ Usage:
     chrisnizer_lint.py --fix FILE             # apply mechanical fixes in place
     chrisnizer_lint.py --academic FILE        # allow "we"/"our" (paper mode)
     chrisnizer_lint.py --ui FILE              # also flag clipped text (READMEs, help, UI)
+    chrisnizer_lint.py --neutral FILE         # team or stakeholder doc: no I/my/we/our
     cat draft.md | chrisnizer_lint.py -       # read stdin
 
 Stdlib only. Skips fenced code blocks, inline code, URLs, and text in double
@@ -158,6 +159,58 @@ _ADJ_END = re.compile(r"\w{2,}(?:y|ed|ful|ous|ish|less|ive|able)$")
 _NOUN_END = re.compile(r"\w{2,}(?:ion|ness|ment|ity|er|th|ure|dom|ship|ance|ence|st)$")
 
 PLURAL_FIRST_PERSON = ["we", "our", "ours", "us", "we're", "we've", "we'd", "ourselves"]
+SINGULAR_FIRST_PERSON = ["I", "me", "my", "mine", "myself", "I'm", "I've", "I'd", "I'll"]
+
+# vague_set: a count or quantity the reader can't check. "The rest", "a few" and
+# "two scores" leave the reader asking which ones; name them or give the number.
+VAGUE_QUANTITY = [
+    "the rest", "the others", "the remaining", "a few", "several", "a handful",
+    "a number of", "various", "rarely", "often", "many", "most",
+]
+# Uses of those words that aren't a vague set: "the rest of this page", "how often",
+# "at most", "narrow it most".
+_VAGUE_OK = re.compile(r"\bthe rest of\b|\bhow (?:often|many)\b|\bat most\b|\b(?:it|them|this|that) most\b", re.I)
+# "most" is only a vague set as a determiner: "most gaps", "most of the rows".
+_MOST_DET = re.compile(r"\bmost\s+(?:of\b|[a-z]+s\b)", re.I)
+_NUMBER_WORD = r"(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+# "the three", "these two", "both" ... a set referred to by its size alone.
+_COUNT_REF = re.compile(rf"\b(?:the|these|those|its|their)\s+{_NUMBER_WORD}\b(?!\s+of\b)", re.I)
+# "Two scores have ..." at the start of a sentence: a set named by its size alone.
+_COUNT_OPEN = re.compile(rf"^{_NUMBER_WORD}\s+[a-z]+s\b(?!\s+of\b)", re.I)
+# A list follows when the sentence has a colon or parenthesis after the count, or
+# an "X, Y and Z" run anywhere in it.
+_HAS_LIST = re.compile(r"[:(]|\w+, [\w' -]+,? (?:and|or) \w+")
+
+# positional: "above", "upstream", "later stages" point at a place the reader has
+# to guess. Name the section, figure, step or people instead.
+POSITIONAL = [
+    "upstream", "downstream", "aforementioned", "as mentioned", "as noted",
+    "earlier stages", "later stages", "the next slide", "the previous slide",
+    "the former", "the latter", "see above", "see below",
+]
+# "above" and "below" are positional unless a number or amount follows ("above 30%").
+_ABOVE_BELOW = re.compile(r"\b(?:above|below)\b(?!\s+(?:\$|\d|a |an |the (?:bar|threshold|limit|minimum|maximum)))", re.I)
+
+# dramatic_closer: a punchy summary line built on "nobody" reads as AI copy, and it
+# is often not literally true. Say what is and isn't known.
+_DRAMATIC_CLOSER = [
+    re.compile(r"\b(?:nobody|no one|no-one)\s+(?:has|have|had|knows|knew|measured|tested|checked|noticed|asked|bothered)\b", re.I),
+    re.compile(r"\bare the \w+(?: \w+)? (?:that )?(?:nobody|no one)\b", re.I),
+    re.compile(r"\bthe (?:one|only) thing (?:that )?(?:matters|counts|nobody)\b", re.I),
+]
+
+# fragment: a prose sentence with no subject and verb. Two shapes are reliable:
+# one that opens on a past participle ("Labeled 2 of 3 users."), and a noun phrase
+# ending in a bare participle ("Counsel review needed before relying on it.").
+_PARTICIPLE_OPEN = re.compile(
+    r"^(?!Based\b|Compared\b|Combined\b|Assumed\b)(?:[A-Z]\w*ed|Built|Done|Found|Kept|Made|Seen|Sent|Shown|Written|Held|Run)\b(?![-\w])(?!\s+(?:by|to)\b)(?![^,]*,)")
+_BARE_PARTICIPLE = re.compile(
+    r"^[A-Z][\w' -]{2,40}?\s+(?:needed|required|planned|pending|untested|unmeasured|missing|done|underway)\b", re.I)
+
+# long_paragraph: a paragraph this long usually walks through parallel items
+# (options, dependencies, findings) that read better as a table or a list.
+LONG_PARAGRAPH_WORDS = 120
+LONG_PARAGRAPH_SENTENCES = 6
 
 # Mechanical, safe to auto-fix.
 MECHANICAL = [
@@ -227,7 +280,7 @@ def _mixed_list(sentence: str) -> bool:
     return bool(nouns) and any(_ADJ_END.match(w) for w in last if w not in nouns)
 
 
-def lint(text: str, academic: bool = False, ui: bool = False) -> list[Finding]:
+def lint(text: str, academic: bool = False, ui: bool = False, neutral: bool = False) -> list[Finding]:
     findings: list[Finding] = []
     in_fence = False
     all_lines = text.splitlines()
@@ -292,10 +345,30 @@ def lint(text: str, academic: bool = False, ui: bool = False) -> list[Finding]:
             findings.append(Finding(i, "emoji", raw.strip()[:80],
                 "no decorative emoji in prose"))
 
-        if not academic:
+        if neutral and not m.lstrip().startswith("#"):
+            for hit in [w for w in SINGULAR_FIRST_PERSON if re.search(rf"(?<!Appendix )(?<!Part )(?<!Section )(?<!Phase )(?<!Stage )(?<![\w']){re.escape(w)}(?![\w'])", m)]:
+                findings.append(Finding(i, "first_person",
+                    f"'{hit}' in: {raw.strip()[:80]}",
+                    "neutral voice for team and stakeholder docs: name the doc, the team or the thing"))
+
+        if not m.lstrip().startswith("#"):
+            for hit in _phrase_hits(m, POSITIONAL):
+                findings.append(Finding(i, "positional", f"'{hit}' in: {raw.strip()[:80]}",
+                    "say which section, figure, step or people you mean"))
+            if _ABOVE_BELOW.search(m):
+                findings.append(Finding(i, "positional", f"'{_ABOVE_BELOW.search(m).group()}' in: {raw.strip()[:80]}",
+                    "say which section, figure, step or people you mean"))
+            for pattern in _DRAMATIC_CLOSER:
+                if pattern.search(m):
+                    findings.append(Finding(i, "dramatic_closer", raw.strip()[:80],
+                        "punchy 'nobody' line; check it is literally true and say what is known instead"))
+                    break
+
+        if not academic or neutral:
             for hit in _word_hits(m, PLURAL_FIRST_PERSON):
                 findings.append(Finding(i, "plural_first_person",
                     f"'{hit}' in: {raw.strip()[:80]}",
+                    "neutral voice for team docs" if neutral else
                     "first person singular (I/my) for solo writing; use --academic for papers"))
 
         # verbless fragment previewing a list: "Three fingerprints, all built
@@ -440,6 +513,22 @@ def lint(text: str, academic: bool = False, ui: bool = False) -> list[Finding]:
         if ui and _mixed_list(s):
             findings.append(Finding(line, "mixed_list", s[:90],
                 "the list mixes nouns and adjectives; make every item the same kind of word"))
+        s_ok = _VAGUE_OK.sub(" ", s)
+        vague = [w for w in VAGUE_QUANTITY if w != "most" and re.search(rf"\b{w}\b", s_ok, re.I)]
+        if _MOST_DET.search(s_ok):
+            vague.append("most")
+        count = _COUNT_REF.search(s) or _COUNT_OPEN.search(s)
+        if count and _HAS_LIST.search(s[count.start():]):
+            count = None
+        if vague or count:
+            what = ", ".join(f"'{w}'" for w in vague) or f"'{count.group()}'"
+            findings.append(Finding(line, "vague_set", f"{what} in: {s[:80]}",
+                "name the items or give the count, so the reader can check it"))
+        if 3 <= len(words) and not _HAS_VERB.search(s) and (
+            _PARTICIPLE_OPEN.search(s) or (len(words) <= 10 and _BARE_PARTICIPLE.search(s))
+        ):
+            findings.append(Finding(line, "fragment", s[:90],
+                "no subject and verb; write it as a full sentence"))
         if opener not in _IMPERATIVES and (
             re.search(_passive_by, s, re.I) or re.search(_passive_verbal, s, re.I)
         ):
@@ -447,6 +536,26 @@ def lint(text: str, academic: bool = False, ui: bool = False) -> list[Finding]:
                 "prefer active voice (name the actor), unless a forced active reads worse"))
 
     flush_run()
+
+    # paragraph-level: a long block of prose usually walks through parallel items.
+    para: list[str] = []
+    start = 0
+    for idx, ln in enumerate(masked_lines + [""], 1):
+        if ln.strip() and not ln.lstrip().startswith(("![", ":::")):
+            if not para:
+                start = idx
+            para.append(ln)
+            continue
+        if para:
+            body = " ".join(para)
+            n_words = len(body.split())
+            n_sent = len(re.findall(r"[.!?](?=\s|$)", body))
+            if n_words > LONG_PARAGRAPH_WORDS or n_sent > LONG_PARAGRAPH_SENTENCES:
+                findings.append(Finding(start, "long_paragraph",
+                    body.strip()[:80],
+                    f"{n_words} words, {n_sent} sentences; if it walks through options or other "
+                    "parallel items, use a table or a list"))
+            para = []
 
     return findings
 
@@ -503,6 +612,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--fix", action="store_true", help="apply mechanical fixes in place")
     ap.add_argument("--academic", action="store_true", help="allow we/our (paper mode)")
     ap.add_argument("--ui", action="store_true", help="also flag clipped text: READMEs, help, UI")
+    ap.add_argument("--neutral", action="store_true",
+                    help="team or stakeholder doc: flag I/my as well as we/our")
     args = ap.parse_args(argv)
 
     all_json = {}
@@ -514,7 +625,7 @@ def main(argv: list[str] | None = None) -> int:
             if n:
                 open(path, "w", encoding="utf-8").write(fixed)
             text = fixed
-        findings = lint(text, academic=args.academic, ui=args.ui)
+        findings = lint(text, academic=args.academic, ui=args.ui, neutral=args.neutral)
         total += len(findings)
         if args.json:
             all_json[path] = [asdict(f) for f in findings]

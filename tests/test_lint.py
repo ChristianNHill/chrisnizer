@@ -129,3 +129,60 @@ def test_decimals_and_et_al_do_not_split_sentences():
     long = ("The brain is the connectome of 2.7 million connections from Dorkenwald et al. "
             "(2024), which I run as spiking neurons on five ducks in a garden, each with its own copy.")
     assert "long_sentence" in cats(long)
+
+
+# --- checks added 2026-11-03 from edits to a team document -----------------
+
+def test_vague_set_flags_unnamed_sets():
+    assert "vague_set" in cats("Two scores have no cohort series.")
+    assert "vague_set" in cats("The missing ones include the three that a pilot needs most.")
+    assert "vague_set" in cats("The labeler rarely names a habit from what it's given.")
+    assert "vague_set" in cats("The rest wait for later.")
+
+
+def test_vague_set_allows_named_sets_and_counts():
+    assert "vague_set" not in cats("Prompt quality and delegation depth have no cohort series.")
+    assert "vague_set" not in cats("The three parts (capture, support, dashboard) run on one server.")
+    assert "vague_set" not in cats("The four questions are these: tips, check-ins and the dashboard.")
+    assert "vague_set" not in cats("3 of 7 tool tips describe other products.")
+
+
+def test_positional_terms():
+    assert "positional" in cats("Views above the person are planned as aggregates.")
+    assert "positional" in cats("The labeler can abstain, but later stages hide it.")
+    assert "positional" in cats("The table below lists each step.")
+
+
+def test_positional_allows_amounts():
+    assert "positional" not in cats("Scores above 30% pass the check.")
+    assert "positional" not in cats("Anything below $5 a month is fine.")
+
+
+def test_neutral_flags_singular_first_person_only_in_neutral_mode():
+    assert "first_person" in cats("I estimate the work at 26 weeks.", neutral=True)
+    assert "plural_first_person" in cats("Our estimate is 26 weeks.", neutral=True)
+    assert "plural_first_person" in cats("Our estimate is 26 weeks.", neutral=True, academic=True)
+    assert "first_person" not in cats("I estimate the work at 26 weeks.")
+
+
+def test_dramatic_closer():
+    assert "dramatic_closer" in cats("Upkeep and hosting are the costs nobody has measured.")
+    assert "dramatic_closer" not in cats("Hosting and the test accounts aren't priced yet.")
+
+
+def test_fragment_shapes():
+    assert "fragment" in cats("Labeled 2 of 3 scripted users before the run stopped.")
+    assert "fragment" in cats("Counsel review needed before relying on it.")
+
+
+def test_fragment_allows_full_sentences_and_intro_phrases():
+    assert "fragment" not in cats("Labeled data is stored in the turns table.")
+    assert "fragment" not in cats("Based on the gold set, the model named 48% of patterns.")
+    assert "fragment" not in cats("Built-in checks run every day.")
+    assert "fragment" not in cats("Legal counsel hasn't reviewed it, so it can't be relied on yet.")
+
+
+def test_long_paragraph():
+    para = " ".join(["The option sends prompts with names removed and needs a review."] * 12)
+    assert "long_paragraph" in cats(para)
+    assert "long_paragraph" not in cats("A short paragraph. It has two sentences.")

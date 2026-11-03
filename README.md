@@ -46,6 +46,7 @@ python3 scripts/chrisnizer_lint.py draft.md          # report
 python3 scripts/chrisnizer_lint.py --fix draft.md    # apply mechanical fixes
 python3 scripts/chrisnizer_lint.py --academic draft.md   # allow we/our for papers
 python3 scripts/chrisnizer_lint.py --ui README.md    # also flag clipped text
+python3 scripts/chrisnizer_lint.py --neutral doc.md   # team doc: no I/my/we/our
 cat draft.md | python3 scripts/chrisnizer_lint.py -  # from stdin
 ```
 

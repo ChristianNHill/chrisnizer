@@ -40,3 +40,20 @@ They come from the README and on-screen text of
 | The walking policy upstream ships does not yet track a velocity. | The walking policy that ships upstream does not yet track a commanded velocity. |
 | tap the grass: let it go | tap the grass: deselect it |
 | needs: hunger, thirst, sleep, tired, bored | needs: hungry, thirsty, sleepy, tired, bored |
+
+## Team documents
+
+Made-up pairs in the shape of edits to a stakeholder document, 2026-11-03. Each
+"before" reads fine on its own, and the reader sent each one back.
+
+| Before | After |
+|---|---|
+| The missing ones include the three the launch needs most. | Three of the missing pieces block the launch: a sign-in, an export and a delete button. |
+| Two settings have no default. | The timeout and the retry limit have no default. |
+| The parser rarely handles dates. | The parser handled 3 of 40 date formats. |
+| Reports for people above the user are planned. | Reports for team leads and managers are planned. |
+| Later stages hide the error. | The summary step hides the error. |
+| Hosting and support are the costs nobody has measured. | Hosting isn't priced yet. Support is estimated at one day a week. |
+| Reviewed by legal before launch. | Legal reviews it before launch. |
+| It works with 12 web addresses. | It works with 3 providers: Mail, Calendar and Drive. |
+| The research team owns the threshold. | The project team sets the threshold. |

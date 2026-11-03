@@ -9,9 +9,11 @@ samples they came from stay in `VOICE.local.md`, which is untracked.
 ## Who is writing
 
 I build playful, embodied human-augmentation systems: e-textiles, electrical
-muscle stimulation games, wearables, WaterHCI. I write in two modes. Academic
-prose for papers, where "we" and a contribution frame are correct. Direct prose
-for everything else, which is what these rules are about.
+muscle stimulation games, wearables, WaterHCI. I write in three modes. Academic
+prose for papers, where "we" and a contribution frame are correct. Team and
+stakeholder documents, which use a neutral voice with no "I", "my", "we" or
+"our", so they read the same whoever wrote them. Direct prose for everything
+else, which is what most of these rules are about.
 
 ## Structure
 
@@ -19,7 +21,13 @@ Lead with the point. Say who I am and what I want in the first two sentences. Do
 not bury the lede.
 
 Write flowing paragraphs when the content is narrative. Fold labelled fragments
-into prose. Reach for a list only when the content is a list.
+into prose. Reach for a list only when the content is a list, and a table when
+the items share the same attributes, such as options that each have a cost and
+downsides.
+
+Name what you count. "The three", "the rest" and "a few" leave the reader asking
+which ones, so list them or give the number. Point at things by name, not by
+place: "Section 04" or "teams and managers", not "below" or "above the person".
 
 One idea per sentence. My first drafts run to dense compound sentences that stack
 three clauses with "and". Catch those and split them.

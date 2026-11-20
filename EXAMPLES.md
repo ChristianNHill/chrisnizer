@@ -57,3 +57,23 @@ Made-up pairs in the shape of edits to a stakeholder document, 2026-11-03. Each
 | Reviewed by legal before launch. | Legal reviews it before launch. |
 | It works with 12 web addresses. | It works with 3 providers: Mail, Calendar and Drive. |
 | The research team owns the threshold. | The project team sets the threshold. |
+
+## Team documents, second round
+
+Made-up pairs in the shape of edits to a long stakeholder page, 2026-11-19. The
+page had passed the linter on every run before a reviewer raised these. The pairs
+that drop a figure or reopen a decision are content changes, which the owner
+approved.
+
+| Before | After |
+|---|---|
+| The following table lists the options. (The same opener on twelve tables.) | Each row is one option, with what it needs and its downside: |
+| Earlier versions of this page gave 3 cents per call. The page now uses the larger test. | A call costs 4 cents, measured on the larger test. |
+| The build takes roughly 10 to 20 weeks. | The build time is not identified yet. |
+| The target is to keep summaries on the device. | The target is not decided yet. One option being explored is keeping summaries on the device. |
+| On `main` at `a1b2c3d` that alert can't fire. | Since 4 March, an alert fires only if its rule lists a matching event. This alert lists none. So on the current `main` code (`a1b2c3d`, 4 March), it can't fire. |
+| The export row has no figure. (Two paragraphs on, a cost for the export.) | The export costs 0.2 cents per call. The five test runs made no exports, so the figure comes from a separate run. |
+| Cost per person per day is the cost per call times the calls that person makes in a day. | Cost per person per day = cost per call × calls per person per day. The page has the cost per call. The calls per day aren't measured yet. |
+| The "matched" check runs after each call. | The "matched" check runs after each call. It reads the suggestion and the next request, and records whether the request followed the suggestion. |
+| Because the server keeps no log, the proxy's log is the only source. | The proxy's log is the only source, because the server keeps no log. |
+| Cheaper option | Optimization |

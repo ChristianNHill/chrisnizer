@@ -14,6 +14,10 @@ Usage:
     chrisnizer_lint.py --academic FILE        # allow "we"/"our" (paper mode)
     chrisnizer_lint.py --ui FILE              # also flag clipped text (READMEs, help, UI)
     chrisnizer_lint.py --neutral FILE         # team or stakeholder doc: no I/my/we/our
+    chrisnizer_lint.py --terms TERMS FILE     # flag other names for a thing that has one name
+    chrisnizer_lint.py --facts OLD NEW        # list numbers, ids, links and code lost in a rewrite
+    chrisnizer_lint.py --drift OLD NEW        # show how a rewrite moved the style of the prose
+    chrisnizer_lint.py --all FILE             # also report weak findings that stand alone
     cat draft.md | chrisnizer_lint.py -       # read stdin
 
 Stdlib only. Skips fenced code blocks, inline code, URLs, and text in double
@@ -47,12 +51,61 @@ BOOSTERISM = [
     "must-have", "next-level", "turbocharge",
 ]
 
+# The word lists date quickly: which words a model overuses changes with each
+# model release. Each list says where it came from and when it was last checked,
+# so a stale one can be re-checked against current text instead of grown.
+
 # Generic AI-tell vocabulary (from the humanizer / Wikipedia AI-writing signs).
+# Checked 2026-11 against Wikipedia's "Signs of AI writing" and OpenAI's GPT-6
+# prompting guide. "crucial", "vital", "underscore" and "boasts" are dated as
+# tells but stay here as house style: they inflate.
 AI_VOCAB = [
-    "delve", "underscore", "testament", "tapestry", "showcase", "foster", "surfaces",
-    "garner", "intricate", "realm", "interplay", "multifaceted", "nuanced",
-    "crucial", "vital", "pivotal", "boasts", "nestled", "in the realm of",
+    "delve", "foster", "surfaces", "multifaceted", "nuanced",
+    "underscore", "crucial", "vital", "boasts",
     "it is worth noting", "it's worth noting", "that being said",
+]
+
+# Weak tier: one of these alone says little, so the linter reports them only when
+# two or more land in one paragraph (or with --all).
+# 2023 to 2025 model vocabulary, demoted 2026-11. Sources: Wikipedia's "Signs of
+# AI writing" lists these under earlier model eras, and Graphite's "AI Tells"
+# reports (Sept and Oct 2026) measured the well-known tells falling.
+DATED_VOCAB = [
+    "testament", "tapestry", "showcase", "garner", "intricate",
+    "realm", "interplay", "pivotal", "nestled",
+]
+# Evaluative adjectives reported for models released in 2026, added 2026-11.
+# Source: Graphite's Oct 2026 update (Claude Opus 5.5).
+EVALUATIVE = ["dependable", "steady", "thoughtful", "meaningful"]
+
+# stock_frame: sentence frames reported for models released in 2026, added
+# 2026-11. Each one announces importance or what comes next without saying it.
+# Sources: Graphite's "AI Tells" reports (Sept and Oct 2026) and OpenAI's GPT-6
+# prompting guide. The reports were read in summary, so re-check before tuning.
+_STOCK_FRAMES = [
+    re.compile(r"\bthis matters\b", re.I),
+    re.compile(r"\bwhy (?:[\w'-]+ ){1,3}matters\b", re.I),
+    re.compile(r"\bmatters (?:most|because|enormously)\b", re.I),
+    re.compile(r"\bjust as important\b", re.I),
+    re.compile(r"\blooking ahead\b", re.I),
+    re.compile(r"\bwhat comes next\b", re.I),
+    re.compile(r"\badds? another (?:layer|dimension)\b", re.I),
+    re.compile(r"(?:^|[.!?]\s+)together,? these\b", re.I),
+    re.compile(r"\bbottom line:", re.I),
+    re.compile(r"(?:^|[.!?]\s+)in short[:,]", re.I),
+    re.compile(r"\bthe simplest mental model\b", re.I),
+]
+
+# Contrast frames reported for models released in 2026, added 2026-11. A plain
+# "rather than" comparison is ordinary English and is not flagged. Sources: the
+# same Graphite reports and Wikipedia's mid-2026 section.
+_CONTRAST_FRAMES = [
+    re.compile(r"\brather than (?:simply|merely|just|relying)\b", re.I),
+    re.compile(r"\b(?:is|are|was|were) more than (?:a|an|just)\b[^.]{0,50}, (?:it|they)\b", re.I),
+    re.compile(r"\b(?:is|are|was|were) not (?:simply|merely)\b", re.I),
+    re.compile(r"\bnot only about\b", re.I),
+    re.compile(r"\b(?:doesn't|does not) mean\b[^.]{1,80}\.\s+It means\b", re.I),
+    re.compile(r"\b(?:isn't|is not) about\b[^.]{1,80}\.\s+It(?:'s| is) about\b", re.I),
 ]
 
 HEDGES = [
@@ -70,7 +123,8 @@ _HEDGE_RATHER = re.compile(r"\brather\b(?!\s+than\b)", re.IGNORECASE)
 # which are plain relative clauses, not a cleft standing in for a subject.
 _PSEUDO_CLEFT = re.compile(
     r"\b(?:is|was|are|were)\s+what\s+(?:should|must|has to|have to|need(?:s)?(?:\s+to)?|ought(?:\s+to)?|"
-    r"can|could|will|would|holds?|matters?|works?|counts?)\b",
+    r"can|could|will|would|holds?|matters?|works?|counts?|keeps?|makes?|drives?|lets?|"
+    r"decides?|sets?)\b",
     re.IGNORECASE,
 )
 
@@ -212,6 +266,78 @@ _BARE_PARTICIPLE = re.compile(
 LONG_PARAGRAPH_WORDS = 120
 LONG_PARAGRAPH_SENTENCES = 6
 
+# repeated_opener: the same first words on many sentences is a template.
+REPEATED_OPENER_WORDS = 4
+REPEATED_OPENER_MIN = 5
+
+# empty_lead: a lead-in that names the container ("The following table lists")
+# before it says anything about the content. One is enough to flag: the reader
+# learns more from what a row is. Added 2026-11 from a skill trial.
+_EMPTY_LEAD = re.compile(
+    r"(?:^|\n)[\s>]*(?:the following (?:table|list|figure|chart|diagram) "
+    r"(?:lists|shows|summari[sz]es|presents|outlines|provides|details|displays|illustrates|"
+    r"contains|gives)\b"
+    r"|(?:below|here) (?:is|are) (?:a|an|the) (?:table|list|summary|overview|breakdown)\b)",
+    re.I)
+
+# hedged_number: a hedge on a planning figure with no source in the sentence,
+# such as "about 3 to 5 weeks" or "roughly twenty people". It fires on a hedged
+# range in any unit, and on a single hedged figure only when it counts time in
+# days or longer, people, or money. "About 12 seconds" and "about 0.03 cents"
+# are rounded facts far more often than guesses, so they pass. A basis word in
+# the sentence also turns the check off. Added 2026-11 from a skill trial.
+_NUM = r"[$€£]?\d[\d,.]*%?"
+_NUM_WORD = (r"(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|"
+             r"forty|fifty|a hundred|a thousand|a dozen)")
+_HEDGE_WORD = (r"(?:about|around|roughly|approximately|approx\.?|nearly|almost|an estimated|"
+               r"in the region of|on the order of|somewhere between)")
+_PLAN_UNIT = (r"(?:(?:working |business |calendar )?(?:days?|weeks?|months?|quarters?|years?|sprints?)"
+              r"|person-\w+|people|engineers?|developers?|staff|FTEs?"
+              r"|dollars|euros|pounds|thousand|million|billion|k\b)")
+_HEDGED_NUMBER = re.compile(
+    rf"\b{_HEDGE_WORD}\s+{_NUM}\s*(?:to|or|and|-)\s*{_NUM}"                  # a hedged range
+    rf"|\b{_HEDGE_WORD}\s+(?:{_NUM}|{_NUM_WORD})(?:\s+to\s+{_NUM_WORD})?\s+{_PLAN_UNIT}\b"
+    rf"|\b{_HEDGE_WORD}\s+[$€£]\d[\d,.]*"
+    rf"|(?<![\w~])~\s?(?:[$€£]\d[\d,.]*|\d[\d,.]*\s+{_PLAN_UNIT}\b)"
+    rf"|\b\d[\d,.]*\s+{_PLAN_UNIT}\s+or so\b",
+    re.I)
+_NUMBER_BASIS = re.compile(
+    r"\b(?:measured|counted|estimate[ds]?|calculated|according to|based on)\b", re.I)
+
+# self_history: a document that talks about its own earlier versions. The reader
+# wants what is true now, and the change history belongs in a changelog.
+_SELF_HISTORY = re.compile(
+    r"\b(?:earlier|previous|prior|older) (?:versions?|drafts?) of this "
+    r"(?:page|document|doc|report|deck|note|section|brief|plan)\b"
+    r"|\bthis (?:page|document|doc|report|deck|note|section|brief|plan) "
+    r"(?:now|no longer|previously|used to|formerly|originally)\b"
+    r"|\bas (?:previously|originally) (?:stated|reported|written)\b", re.I)
+
+# distant_pronoun: a paragraph that opens on "It is" or "This means". The noun
+# the pronoun stands for is in another paragraph, so the reader has to look back.
+_PRONOUN_OPEN = re.compile(
+    r"^(?:It|This|That|They|These|Those)\s+(?:is|are|was|were|has|have|had|can|could|"
+    r"will|would|should|may|might|must|does|do|did|means|meant|makes|made|gives|gave|"
+    r"shows|showed|needs|needed|leaves|left|lets|keeps|kept|runs|ran|adds|added|"
+    r"happens|happened|works|worked|matters|mattered)\b")
+
+# orphan_asterisk: a footnote marker ("2.4 cents*") in a section with no note
+# line that explains it. A section runs to the next heading of level 1 to 3.
+_EMPHASIS = re.compile(r"\*\*[^*\n]+\*\*|(?<![\w*])\*[^*\s][^*\n]*?\*(?![\w*])")
+_ASTERISK_MARK = re.compile(r"[\w)%\]]\\?\*(?=[\s.,;:|)]|$)")
+# A note is a line that opens "Note: *", an escaped "\\* ", or "*: ". A plain
+# "* text" line is a list bullet, and "**Bold**" is emphasis, so neither counts.
+_ASTERISK_NOTE = re.compile(r"^[\s>]*(?:note:\s*\\?\*(?!\*)|\\\*\s|\*:\s)", re.I)
+
+# --facts: what a rewrite must not lose.
+_FACT_KINDS = [
+    ("code", re.compile(r"`[^`\n]+`")),
+    ("link", re.compile(r"\]\(([^)\s]+)\)|https?://[^\s)>\]]+")),
+    ("anchor", re.compile(r"\{#[\w-]+\}")),
+    ("id", re.compile(r"\b[A-Z][A-Za-z]*\d*-\d+\b|\b[A-Z]{2,}\d+\b")),
+    ("number", re.compile(r"(?<![\w.-])[$€£]?\d+(?:,\d{3})*(?:\.\d+)?%?")),
+]
+
 # Mechanical, safe to auto-fix.
 MECHANICAL = [
     ("‘", "'"), ("’", "'"), ("“", '"'), ("”", '"'),
@@ -236,6 +362,7 @@ class Finding:
     category: str
     text: str
     suggestion: str
+    strength: str = "rule"  # "weak": reported only in a cluster, or with --all
 
 
 # --- masking: never lint inside code or URLs -------------------------------
@@ -280,7 +407,181 @@ def _mixed_list(sentence: str) -> bool:
     return bool(nouns) and any(_ADJ_END.match(w) for w in last if w not in nouns)
 
 
-def lint(text: str, academic: bool = False, ui: bool = False, neutral: bool = False) -> list[Finding]:
+def load_terms(path: str) -> dict[str, list[str]]:
+    """Read a terms file: one 'canonical name: other name, other name' per line."""
+    terms: dict[str, list[str]] = {}
+    for line in open(path, encoding="utf-8"):
+        line = line.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+        name, others = line.split(":", 1)
+        terms[name.strip()] = [o.strip() for o in others.split(",") if o.strip()]
+    return terms
+
+
+def _prose_lines(text: str) -> list[str]:
+    """Every line, with fenced code blanked and inline code, URLs and quotes masked."""
+    out, in_fence = [], False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            out.append("")
+            continue
+        out.append("" if in_fence else _mask_line(line))
+    return out
+
+
+def _term_drift(lines: list[str], terms: dict[str, list[str]]) -> list[Finding]:
+    found = []
+    for name, others in terms.items():
+        for other in others:
+            pattern = re.compile(rf"(?<![\w-]){re.escape(other)}(?:e?s)?(?![\w-])", re.I)
+            hits = [i for i, ln in enumerate(lines, 1)
+                    if not ln.lstrip().startswith("#") and pattern.search(ln)]
+            if hits:
+                where = ", ".join(f"L{i}" for i in hits[:8]) + (" ..." if len(hits) > 8 else "")
+                found.append(Finding(hits[0], "term_drift",
+                    f"'{other}' on {len(hits)} lines: {where}",
+                    f"the terms file names this '{name}'; use one name for one thing"))
+    return found
+
+
+def _orphan_asterisks(text: str) -> list[Finding]:
+    found = []
+    section: list[tuple[int, str]] = []
+
+    def flush() -> None:
+        marks = [(i, ln) for i, ln in section
+                 if _ASTERISK_MARK.search(_EMPHASIS.sub(" ", _INLINE_CODE.sub(" ", ln)))
+                 and not _ASTERISK_NOTE.match(ln)]
+        if marks and not any(_ASTERISK_NOTE.match(ln) for _, ln in section):
+            found.append(Finding(marks[0][0], "orphan_asterisk", marks[0][1].strip()[:80],
+                f"{len(marks)} lines carry an asterisk and this section has no note that "
+                "explains it; add the note or drop the marker"))
+        section.clear()
+
+    in_fence = False
+    for i, line in enumerate(text.splitlines(), 1):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if re.match(r"#{1,3}\s", line):  # a sub-heading (####) stays in its section
+            flush()
+            continue
+        section.append((i, line))
+    flush()
+    return found
+
+
+def facts(text: str) -> dict[str, dict[str, int]]:
+    """Count each number, id, link, anchor and code span in a document."""
+    counts: dict[str, dict[str, int]] = {kind: {} for kind, _ in _FACT_KINDS}
+    for kind, pattern in _FACT_KINDS:
+        for m in pattern.finditer(text):
+            value = m.group(1) if kind == "link" and m.group(1) else m.group()
+            counts[kind][value] = counts[kind].get(value, 0) + 1
+        # a later kind must not count text that an earlier kind already owns
+        text = pattern.sub(" ", text)
+    return counts
+
+
+def compare_facts(old: str, new: str) -> tuple[list[str], list[str]]:
+    """Return (lost, added) lines describing how the facts differ between two versions."""
+    before, after = facts(old), facts(new)
+    lost, added = [], []
+    for kind, _ in _FACT_KINDS:
+        for value in sorted(set(before[kind]) | set(after[kind])):
+            b, a = before[kind].get(value, 0), after[kind].get(value, 0)
+            if a < b:
+                lost.append(f"{kind:<7} {value}  ({b} -> {a})")
+            elif a > b:
+                added.append(f"{kind:<7} {value}  ({b} -> {a})")
+    return lost, added
+
+
+def _drop_lone_weak(findings: list[Finding], text: str) -> list[Finding]:
+    """Keep a weak finding only when its paragraph holds two or more of them."""
+    para_of, para = {}, 0
+    for i, line in enumerate(text.splitlines(), 1):
+        if not line.strip():
+            para += 1
+        para_of[i] = para
+    counts: dict[int, int] = {}
+    for f in findings:
+        if f.strength == "weak":
+            counts[para_of.get(f.line, -1)] = counts.get(para_of.get(f.line, -1), 0) + 1
+    return [f for f in findings
+            if f.strength != "weak" or counts[para_of.get(f.line, -1)] >= 2]
+
+
+_FUNCTION_WORDS = set("""a an the this that these those and but or so if because as of to in on at
+by for with from into about than then there here it its he she they them his her their we us
+our you your i me my is are was were be been being am do does did has have had not no can
+could will would shall should may might must which who whom whose what when where why how
+also just only very more most some any each every all both either neither""".split())
+_CONTRACTION = re.compile(
+    r"\b(?:\w+n't|\w+'(?:re|ve|ll|d|m)|(?:it|that|there|what|here|let|he|she|who)'s)\b", re.I)
+
+# Each metric: name, the direction a model rewrite moves it, and a note on what moved.
+_DRIFT_METRICS = [
+    ("letters per word", +1, "longer words"),
+    ("word variety", +1, "fewer repeated words; check that one thing still has one name"),
+    ("function words, share", -1, "small words cut (that, the, of)"),
+    ("contractions per 1,000 words", -1, "contractions written out"),
+    ("commas per sentence", +1, "more commas"),
+    ("dashes per 1,000 words", +1, "more dashes"),
+    ("sentence length spread", -1, "sentences closer to one length"),
+]
+DRIFT_THRESHOLD = 0.10  # a relative change this large, in the model direction, is flagged
+
+
+def style(text: str) -> dict[str, float]:
+    """Measure the prose of a document: words, small words, punctuation and rhythm."""
+    lines = [ln for ln in _prose_lines(text)
+             if ln.strip() and not ln.lstrip().startswith(("#", "|", ":::", "!["))
+             and not re.fullmatch(r"\s*[-*_=]{3,}\s*", ln)]  # rules and frontmatter fences
+    # drop list markers and block-quote marks, so a "- item" bullet is not a dash
+    prose = " ".join(re.sub(r"^[\s>]*(?:[-*+]|\d+[.)])?\s+", "", ln) for ln in lines)
+    words = re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?", prose)
+    low = [w.lower() for w in words]
+    n = max(len(words), 1)
+    sentences = [x for x in re.split(r"(?<=[.!?])\s+", prose) if len(x.split()) >= 2]
+    lengths = [len(x.split()) for x in sentences] or [0]
+    mean = sum(lengths) / len(lengths)
+    spread = ((sum((v - mean) ** 2 for v in lengths) / len(lengths)) ** 0.5 / mean) if mean else 0.0
+    window = 50  # variety: share of distinct words, averaged over 50-word windows
+    if len(low) >= window:
+        steps = range(0, len(low) - window + 1, 10)
+        variety = sum(len(set(low[k:k + window])) / window for k in steps) / len(steps)
+    else:
+        variety = len(set(low)) / n
+    return {
+        "letters per word": sum(len(w.replace("'", "")) for w in words) / n,
+        "word variety": variety,
+        "function words, share": sum(w in _FUNCTION_WORDS for w in low) / n,
+        "contractions per 1,000 words": 1000 * len(_CONTRACTION.findall(prose)) / n,
+        "commas per sentence": prose.count(",") / max(len(sentences), 1),
+        "dashes per 1,000 words": 1000 * len(re.findall(r"—|–|\s-\s|--", prose)) / n,
+        "sentence length spread": spread,
+    }
+
+
+def compare_style(old: str, new: str) -> list[tuple[str, float, float, str]]:
+    """Return (metric, old value, new value, note) rows; the note is empty unless
+    the rewrite moved the metric the way model rewrites move it."""
+    before, after = style(old), style(new)
+    rows = []
+    for name, direction, note in _DRIFT_METRICS:
+        b, a = before[name], after[name]
+        change = (a - b) / b if b else (1.0 if a else 0.0)
+        rows.append((name, b, a, note if change * direction >= DRIFT_THRESHOLD else ""))
+    return rows
+
+
+def lint(text: str, academic: bool = False, ui: bool = False, neutral: bool = False,
+         terms: dict[str, list[str]] | None = None, all_weak: bool = False) -> list[Finding]:
     findings: list[Finding] = []
     in_fence = False
     all_lines = text.splitlines()
@@ -298,7 +599,8 @@ def lint(text: str, academic: bool = False, ui: bool = False, neutral: bool = Fa
             if ch in m:
                 findings.append(Finding(i, "em_dash",
                     f"{name} in: {raw.strip()[:80]}",
-                    "replace with a comma, period, or colon; you avoid dashes"))
+                    "house style: use a comma, period, colon or parentheses, or restructure; "
+                    "vary the replacement"))
 
         for cat, words, sug in (
             ("filler", FILLER, "cut it or say it plainly"),
@@ -314,6 +616,23 @@ def lint(text: str, academic: bool = False, ui: bool = False, neutral: bool = Fa
         ):
             for hit in _phrase_hits(m, phrases):
                 findings.append(Finding(i, cat, f"'{hit}' in: {raw.strip()[:80]}", sug))
+
+        for hit in _word_hits(m, DATED_VOCAB + EVALUATIVE):
+            findings.append(Finding(i, "weak_vocab", f"'{hit}' in: {raw.strip()[:80]}",
+                "two or more of these in one paragraph read as model text; use the plain word",
+                strength="weak"))
+
+        for pattern in _STOCK_FRAMES:
+            if pattern.search(m):
+                findings.append(Finding(i, "stock_frame",
+                    f"'{pattern.search(m).group().strip(' .!?')}' in: {raw.strip()[:80]}",
+                    "the frame announces a point without making it; say what matters and why, "
+                    "or what happens next"))
+        for pattern in _CONTRAST_FRAMES:
+            if pattern.search(m):
+                findings.append(Finding(i, "negative_parallelism",
+                    f"'{pattern.search(m).group()[:40]}' in: {raw.strip()[:80]}",
+                    "say what the thing is in one plain clause; drop the set-up it is contrasted with"))
 
         if _HEDGE_RATHER.search(m):
             findings.append(Finding(i, "hedge", f"'rather' in: {raw.strip()[:80]}",
@@ -350,6 +669,11 @@ def lint(text: str, academic: bool = False, ui: bool = False, neutral: bool = Fa
                 findings.append(Finding(i, "first_person",
                     f"'{hit}' in: {raw.strip()[:80]}",
                     "neutral voice for team and stakeholder docs: name the doc, the team or the thing"))
+
+        if not m.lstrip().startswith("#") and _SELF_HISTORY.search(m):
+            findings.append(Finding(i, "self_history",
+                f"'{_SELF_HISTORY.search(m).group()}' in: {raw.strip()[:80]}",
+                "say what is true now; the document's own history belongs in a changelog"))
 
         if not m.lstrip().startswith("#"):
             for hit in _phrase_hits(m, POSITIONAL):
@@ -473,6 +797,7 @@ def lint(text: str, academic: bool = False, ui: bool = False, neutral: bool = Fa
         return a == b or (a in STACCATO_PRONOUNS and b in STACCATO_PRONOUNS)
 
     run: list[tuple[int, str]] = []  # (line, sentence) for the current staccato run
+    openers: dict[str, list[int]] = {}  # first words of a sentence -> lines that use them
 
     def flush_run() -> None:
         if len(run) >= STACCATO_RUN:
@@ -492,6 +817,19 @@ def lint(text: str, academic: bool = False, ui: bool = False, neutral: bool = Fa
 
         words = s.split()
         opener = _opener(s)
+        if len(words) > REPEATED_OPENER_WORDS:
+            key = " ".join(w.lower().strip(",;:\"'()") for w in words[:REPEATED_OPENER_WORDS])
+            openers.setdefault(key, []).append(line)
+        lead = _EMPTY_LEAD.search(s)
+        if lead:
+            findings.append(Finding(line, "empty_lead", f"'{lead.group().strip()}' in: {s[:80]}",
+                "the lead names the container before the content; say what each row or item "
+                "is, such as 'Each row is one option:'"))
+        hedged = _HEDGED_NUMBER.search(s)
+        if hedged and not _NUMBER_BASIS.search(s):
+            findings.append(Finding(line, "hedged_number", f"'{hedged.group()}' in: {s[:80]}",
+                "a hedged planning figure with no source in the sentence; say what it rests "
+                "on. Deleting the hedge or adding 'estimated' with no source is not a fix"))
         if len(words) <= STACCATO_WORDS and (not run or _same_shape(_opener(run[-1][1]), opener)):
             run.append((line, s))
         else:
@@ -537,6 +875,13 @@ def lint(text: str, academic: bool = False, ui: bool = False, neutral: bool = Fa
 
     flush_run()
 
+    for key, lines in openers.items():
+        if len(lines) >= REPEATED_OPENER_MIN:
+            where = ", ".join(f"L{n}" for n in lines[:8]) + (" ..." if len(lines) > 8 else "")
+            findings.append(Finding(lines[0], "repeated_opener",
+                f"'{key} ...' opens {len(lines)} sentences: {where}",
+                "the same frame reads as a template; say what each one is about instead"))
+
     # paragraph-level: a long block of prose usually walks through parallel items.
     para: list[str] = []
     start = 0
@@ -548,6 +893,10 @@ def lint(text: str, academic: bool = False, ui: bool = False, neutral: bool = Fa
             continue
         if para:
             body = " ".join(para)
+            if _PRONOUN_OPEN.match(body.strip()):
+                findings.append(Finding(start, "distant_pronoun", body.strip()[:80],
+                    "the paragraph opens on a pronoun whose noun is in another paragraph; "
+                    "name the thing"))
             n_words = len(body.split())
             n_sent = len(re.findall(r"[.!?](?=\s|$)", body))
             if n_words > LONG_PARAGRAPH_WORDS or n_sent > LONG_PARAGRAPH_SENTENCES:
@@ -557,7 +906,11 @@ def lint(text: str, academic: bool = False, ui: bool = False, neutral: bool = Fa
                     "parallel items, use a table or a list"))
             para = []
 
-    return findings
+    findings.extend(_orphan_asterisks(text))
+    if terms:
+        findings.extend(_term_drift(_prose_lines(text), terms))
+
+    return findings if all_weak else _drop_lone_weak(findings, text)
 
 
 def _strip_code(text: str) -> str:
@@ -614,7 +967,48 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--ui", action="store_true", help="also flag clipped text: READMEs, help, UI")
     ap.add_argument("--neutral", action="store_true",
                     help="team or stakeholder doc: flag I/my as well as we/our")
+    ap.add_argument("--terms", metavar="TERMS",
+                    help="terms file, 'canonical: other, other' per line; flag the other names")
+    ap.add_argument("--facts", action="store_true",
+                    help="take two paths, OLD and NEW, and list the numbers, ids, links, "
+                         "anchors and code spans that the rewrite lost or added")
+    ap.add_argument("--drift", action="store_true",
+                    help="take two paths, OLD and NEW, and show how the rewrite moved word "
+                         "length, small words, punctuation and sentence rhythm")
+    ap.add_argument("--all", action="store_true",
+                    help="also report weak findings that stand alone in their paragraph")
     args = ap.parse_args(argv)
+
+    if args.drift:
+        if len(args.paths) != 2:
+            ap.error("--drift takes two paths: OLD NEW")
+        old, new = (open(p, encoding="utf-8").read() for p in args.paths)
+        rows = compare_style(old, new)
+        if args.json:
+            print(json.dumps([{"metric": m, "old": b, "new": a, "drift": note}
+                              for m, b, a, note in rows], indent=2))
+        else:
+            flagged = sum(bool(note) for *_, note in rows)
+            print(f"drift: {flagged} of {len(rows)} measures moved the way model rewrites move them")
+            for m, b, a, note in rows:
+                print(f"  {m:<30} {b:>7.2f} -> {a:>7.2f}  {('<- ' + note) if note else ''}")
+        return 0
+
+    if args.facts:
+        if len(args.paths) != 2:
+            ap.error("--facts takes two paths: OLD NEW")
+        old, new = (open(p, encoding="utf-8").read() for p in args.paths)
+        lost, added = compare_facts(old, new)
+        if args.json:
+            print(json.dumps({"lost": lost, "added": added}, indent=2))
+        else:
+            for title, rows in (("lost", lost), ("added", added)):
+                print(f"{title}: {len(rows)}")
+                for row in rows:
+                    print(f"  {row}")
+        return 1 if lost else 0
+
+    terms = load_terms(args.terms) if args.terms else None
 
     all_json = {}
     total = 0
@@ -625,7 +1019,8 @@ def main(argv: list[str] | None = None) -> int:
             if n:
                 open(path, "w", encoding="utf-8").write(fixed)
             text = fixed
-        findings = lint(text, academic=args.academic, ui=args.ui, neutral=args.neutral)
+        findings = lint(text, academic=args.academic, ui=args.ui, neutral=args.neutral,
+                        terms=terms, all_weak=args.all)
         total += len(findings)
         if args.json:
             all_json[path] = [asdict(f) for f in findings]
